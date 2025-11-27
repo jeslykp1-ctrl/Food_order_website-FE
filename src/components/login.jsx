@@ -1,8 +1,5 @@
 import { useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
   TextField,
   Button,
   Tabs,
@@ -10,13 +7,16 @@ import {
   Box,
   InputAdornment,
   IconButton,
+  Typography,
+  Paper,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { login, register } from "../api/auth";
-import { useAuth } from "../providers/auth-context";
+import { useAuth } from "../context/auth-context";
+import { useNavigate } from "react-router-dom";
 
-export default function ProfilePopup({ open, onClose }) {
+export default function LoginPage() {
   const [tab, setTab] = useState(0); // 0 = Login, 1 = Register
 
   const [formData, setFormData] = useState({
@@ -25,11 +25,11 @@ export default function ProfilePopup({ open, onClose }) {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-
   const handleToggle = () => setShowPassword((prev) => !prev);
-  const [errors, setErrors] = useState({}); 
-  const { setAuthUser, authUser, clearAuthUser } = useAuth();
 
+  const [errors, setErrors] = useState({});
+  const { setAuthUser, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const handleTabChange = (event, newValue) => {
     setTab(newValue);
     setErrors({});
@@ -48,8 +48,8 @@ export default function ProfilePopup({ open, onClose }) {
   const validateField = (name, value) => {
     let error = "";
 
-    if (name === "username" && tab === 1) {
-      if (!value.trim()) error = "Username is required";
+    if (name === "username" && tab === 1 && !value.trim()) {
+      error = "Username is required";
     }
 
     if (name === "email") {
@@ -72,7 +72,6 @@ export default function ProfilePopup({ open, onClose }) {
     const newErrors = {};
     let isValid = true;
 
-    // Validate all fields for current tab
     if (tab === 1 && !formData.username.trim()) {
       newErrors.username = "Username is required";
       isValid = false;
@@ -103,22 +102,25 @@ export default function ProfilePopup({ open, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+
     try {
       if (tab === 0) {
         const data = await login({
           email: formData.email,
           password: formData.password,
         });
-        setAuthUser(data.userObject);
-        console.log("Login success:", data);
+        setAuthUser(data);
+        {
+          isAdmin(data) ? navigate("/admin") : navigate("/");
+        }
       } else {
-        // Register API
         const data = await register(formData);
         console.log("Register success:", data);
+        {
+          isAdmin(data) ? navigate("/admin") : navigate("/");
+        }
       }
-      onClose();
     } catch (error) {
-      // show backend errors inline
       const apiErrors = {};
       if (error.response?.data?.errors) {
         error.response.data.errors.forEach((err) => {
@@ -130,94 +132,93 @@ export default function ProfilePopup({ open, onClose }) {
       }
     }
   };
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>
-        {authUser ? (
-          <div>Are you sure you want to logout?</div>
-        ) : (
-          <Tabs
-            value={tab}
-            onChange={handleTabChange}
-            textColor="primary"
-            indicatorColor="primary"
-            centered
-          >
-            <Tab label="Login" />
-            <Tab label="Register" />
-          </Tabs>
-        )}
-      </DialogTitle>
 
-      <DialogContent sx={{ paddingBottom: "40px" }}>
-        {authUser ? (
+  return (
+    <Box
+      sx={{
+        width: "100%",
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#f9f9f9",
+        padding: 2,
+      }}
+    >
+      <Paper sx={{ width: 380, padding: 4, borderRadius: 3 }} elevation={3}>
+        <Typography variant="h5" align="center" mb={2}>
+          {tab === 0 ? "Login" : "Register"}
+        </Typography>
+
+        <Tabs
+          value={tab}
+          onChange={handleTabChange}
+          textColor="primary"
+          indicatorColor="primary"
+          centered
+        >
+          <Tab label="Login" />
+          <Tab label="Register" />
+        </Tabs>
+
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-4 mt-4"
+        >
+          {tab === 1 && (
+            <TextField
+              label="Username"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              error={!!errors.username}
+              helperText={errors.username}
+              fullWidth
+            />
+          )}
+
+          <TextField
+            label="Email"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            error={!!errors.email}
+            helperText={errors.email}
+            fullWidth
+          />
+
+          <TextField
+            label="Password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            value={formData.password}
+            onChange={handleChange}
+            error={!!errors.password}
+            helperText={errors.password}
+            fullWidth
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={handleToggle} edge="end">
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+
           <Button
+            type="submit"
             variant="contained"
             sx={{ backgroundColor: "rgb(245,89,5)", borderRadius: "8px" }}
-            onClick={() => {
-              clearAuthUser();
-              onClose();
-            }}
+            fullWidth
           >
-            Logout
+            {tab === 0 ? "Login" : "Register"}
           </Button>
-        ) : (
-          <Box
-            component="form"
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-4 mt-3"
-          >
-            {tab === 1 && (
-              <TextField
-                label="Username"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                error={!!errors.username}
-                helperText={errors.username}
-                fullWidth
-              />
-            )}
-            <TextField
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              error={!!errors.email}
-              helperText={errors.email}
-              fullWidth
-            />
-            <TextField
-              label="Password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              value={formData.password}
-              onChange={handleChange}
-              error={!!errors.password}
-              helperText={errors.password}
-              fullWidth
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={handleToggle} edge="end">
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-
-            <Button
-              type="submit"
-              variant="contained"
-              sx={{ backgroundColor: "rgb(245,89,5)", borderRadius: "8px" }}
-            >
-              {tab === 0 ? "Login" : "Register"}
-            </Button>
-          </Box>
-        )}
-      </DialogContent>
-    </Dialog>
+        </Box>
+      </Paper>
+    </Box>
   );
 }
